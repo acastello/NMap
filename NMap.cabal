@@ -1,6 +1,6 @@
-name:       MapTree
+name:       NMap
 version:    0.12
-synopsis:   A multilevel Map structure
+synopsis:   A transparent nested Map structure
 description: 
 category: Data
 license: LGPL
@@ -11,5 +11,5 @@ build-type: Simple
 
 library
     hs-source-dirs:     src
-    exposed-modules:    Data.MapTree
+    exposed-modules:    Data.NMap
     build-depends:      containers, base >= 3 && < 5
