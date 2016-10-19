@@ -1,10 +1,11 @@
 module Data.NMap (
     NMap, (.<), (.>), drawNMap, mapKeys, mapWithKey, mapWithKey0,
-    traverseKeys, mapKeysM, fromList, elems, rootKeys, roots, lookup, (!), member,
-    branch, insert, insert0         
+    traverseKeys, traverseWithKey, bitraverse, bisequence, mapKeysM, fromList, elems, 
+    rootKeys, roots, lookup, (!), member, branch, insert, insert0         
     )where
 
 import qualified Data.Map as M
+import Data.Bifunctor
 import Data.List (intersperse)
 import Data.Tuple (swap)
 import Prelude hiding (lookup)
@@ -94,17 +95,23 @@ instance Traversable (NMap k) where
     traverse f (Branch m) = Branch <$> (traverse (traverse f) m)
 
 traverseKeys :: (Ord k2, Applicative t) => (k1 -> t k2) -> NMap k1 a -> t (NMap k2 a)
-traverseKeys f (Leaf a) = pure (Leaf a)
-traverseKeys f (Branch m) = Branch <$> (traverseK2 f (traverseKeys f) m)
+traverseKeys f = bitraverse f pure
 
 traverseWithKey :: (Ord k, Applicative t) => (k -> a -> t b) -> NMap k a -> t (NMap k b)
 traverseWithKey f = sequenceA . (mapWithKey f)
 
-mapKeysM :: (Ord k2, Monad m) => (k1 -> m k2) -> NMap k1 a -> m (NMap k2 a)
-mapKeysM = traverseKeys
+bitraverse :: (Applicative t, Ord k2) => (k1 -> t k2) -> (a1 -> t a2) -> NMap k1 a1 -> t (NMap k2 a2)
+bitraverse _ g (Leaf a) = Leaf <$> g a
+bitraverse f g (Branch m) = Branch <$> (traverseK2 f (bitraverse f g) m)
 
 traverseK2 :: (Applicative t, Ord k2) => (k1 -> t k2) -> (a -> t b) -> M.Map k1 a -> t (M.Map k2 b)
 traverseK2 f g = (M.fromList <$>) . (traverse (\(x,y) -> (,) <$> f x <*> g y)) . M.toList
+
+bisequence :: (Applicative t, Ord k) => NMap (t k) (t a) -> t (NMap k a)
+bisequence = bitraverse id id
+
+mapKeysM :: (Ord k2, Monad m) => (k1 -> m k2) -> NMap k1 a -> m (NMap k2 a)
+mapKeysM = traverseKeys
 
 fromList :: Ord k => [(k,NMap k a)] -> NMap k a
 fromList = Branch . M.fromList
