@@ -1,7 +1,7 @@
 module Data.NMap (
     NMap, (.<), (.>), drawNMap, mapKeys, mapWithKey, mapWithKey0,
     traverseKeys, traverseWithKey, bitraverse, bisequence, mapKeysM, fromList, elems, 
-    rootKeys, roots, lookup, (!), member, branch, insert, insert0         
+    rootKeys, roots, lookup, (!), member, branch, branch0, insert, insert0         
     )where
 
 import qualified Data.Map as M
@@ -151,6 +151,9 @@ member _ _ = False
 
 branch :: Ord k => [k] -> a -> NMap k a
 branch ks a = foldr (\a b -> fromList [(a,b)]) (Leaf a) ks
+
+branch0 :: Ord k => k -> a -> NMap k a
+branch0 k a = fromList [k .> a]
 
 insert :: Ord k => [k] -> a -> NMap k a -> NMap k a
 insert ks a m = (branch ks a) `mappend` m
