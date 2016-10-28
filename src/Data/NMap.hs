@@ -1,7 +1,7 @@
 module Data.NMap (
     NMap, (.<), (.>), drawNMap, mapKeys, mapWithKey, mapWithKey0,
     traverseKeys, traverseWithKey, bitraverse, bisequence, mapKeysM, fromList, elems, 
-    rootKeys, roots, lookup, (!), member, branch, branch0, insert, insert0         
+    delete, delete0, rootKeys, roots, lookup, (!), member, branch, branch0, insert, insert0         
     )where
 
 import qualified Data.Map as M
@@ -20,6 +20,9 @@ k .< xs = (k, Branch $ M.fromList xs)
 
 infixr 0 .>
 k .> a = (k, Leaf a)
+
+infixr 0 <:>
+m <:> n = m*n
 
 instance (Show a, Show b) => Show (NMap a b) where
     show (Leaf a) = concat ["[", show a, "]"]
@@ -124,6 +127,16 @@ toKeys = elems . (mapWithKeys (,))
 
 elems :: NMap k a -> [a]
 elems = foldr (:) []
+
+delete :: Ord k => [k] -> NMap k a -> NMap k a
+delete (k:[]) (Branch m) = Branch $ M.delete k m
+delete (k:ks) (Branch m) = Branch $ M.adjust (delete ks) k m
+delete [] nm = nm
+delete _ l = l
+
+delete0 :: Ord k => k -> NMap k a -> NMap k a
+delete0 k (Branch m) = Branch $ M.delete k m
+delete0 _ l = l
 
 rootKeys :: NMap k a -> [k]
 rootKeys (Leaf _) = error "0-depth trees don't have keys"
