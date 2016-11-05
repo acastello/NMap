@@ -128,6 +128,9 @@ toKeys = elems . (mapWithKeys (,))
 elems :: NMap k a -> [a]
 elems = foldr (:) []
 
+-- alter :: (Maybe a -> Maybe a) -> [k] -> NMap k a -> NMap k a
+-- alter f ks m = lookup 
+
 delete :: Ord k => [k] -> NMap k a -> NMap k a
 delete (k:[]) (Branch m) = Branch $ M.delete k m
 delete (k:ks) (Branch m) = Branch $ M.adjust (delete ks) k m
