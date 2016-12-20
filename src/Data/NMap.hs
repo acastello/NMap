@@ -1,5 +1,5 @@
 module Data.NMap (
-    NMap, (.<), (.>), drawNMap, mapKeys, mapWithKey, mapWithKey0,
+    NMap, leaf, roots, (.<), (.>), drawNMap, mapKeys, mapWithKey, mapWithKey0,
     traverseKeys, traverseWithKey, bitraverse, bisequence, mapKeysM, fromList, elems, 
     delete, delete0, rootKeys, roots, lookup, (!), member, branch, branch0, insert, insert0         
     )where
