@@ -1,5 +1,5 @@
 name:       NMap
-version:    0.13
+version:    0.13.1.0
 synopsis:   A transparent nested Map structure
 description: 
 category: Data

@@ -10,7 +10,9 @@ module Data.NMap (
 import qualified Data.Map as M
 import Data.Bifunctor
 import Data.List (intersperse)
+#if MIN_VERSION_base(4,9,0)
 import Data.Semigroup
+#endif
 import Data.Tuple (swap)
 import Prelude hiding (lookup)
 
@@ -52,9 +54,11 @@ drawNMap mt = unlines $ firstdraw mt where
     draw'' ((x,m):xs) = shift ("├─" ++ show x ++ "─") ("│ " ++ (show x ++ " " *> " ")) (draw m) ++ (draw'' xs)
     shift lhs other = zipWith (++) (lhs : repeat other)
 
+#if MIN_VERSION_base(4,9,0)
 instance Ord k => Semigroup (NMap k b) where
     (<>) = mappend
     stimes = stimesIdempotentMonoid
+#endif
 
 instance Ord k => Monoid (NMap k b) where
     mempty = Branch M.empty
