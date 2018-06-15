@@ -1,12 +1,16 @@
+{-# LANGUAGE CPP #-}
+
 module Data.NMap (
     NMap, leaf, roots, (.<), (.>), drawNMap, mapKeys, mapWithKey, mapWithKey0,
-    traverseKeys, traverseWithKey, bitraverse, bisequence, mapKeysM, fromList, elems, 
-    delete, delete0, rootKeys, lookup, (!), member, branch, branch0, insert, insert0         
+    traverseKeys, traverseWithKey, bitraverse, bisequence, mapKeysM, fromList, 
+    elems, delete, delete0, rootKeys, lookup, (!), member, branch, branch0, 
+    insert, insert0, fromKeys, toKeys
     )where
 
 import qualified Data.Map as M
 import Data.Bifunctor
 import Data.List (intersperse)
+import Data.Semigroup
 import Data.Tuple (swap)
 import Prelude hiding (lookup)
 
@@ -16,13 +20,12 @@ data NMap k a =
     deriving Eq
 
 infixr 0 .<
+(.<) :: Ord k => a -> [(k, NMap k b)] -> (a, NMap k b)
 k .< xs = (k, Branch $ M.fromList xs)
 
 infixr 0 .>
+(.>) :: k -> a -> (k, NMap k a)
 k .> a = (k, Leaf a)
-
-infixr 0 <:>
-m <:> n = m*n
 
 instance (Show a, Show b) => Show (NMap a b) where
     show (Leaf a) = concat ["[", show a, "]"]
@@ -36,6 +39,7 @@ drawNMap mt = unlines $ firstdraw mt where
     firstdraw' [] = ["()"]
     firstdraw' [(x,m)] = shift (show x ++ "─") (show x ++ " " *> " ") (draw m)
     firstdraw' ((x,m):xs) = (shift ("┌─" ++ show x ++ "─") ("│ " ++ (show x ++ "-" *> " ")) (draw m)) ++ (firstdraw'' xs)
+    firstdraw'' [] = undefined
     firstdraw'' [(x,m)] = shift ("└─" ++ show x ++ "─") ("└─" ++ show x ++ "─" *> " ") (draw m)
     firstdraw'' ((x,m):xs) = shift ("├─" ++ show x ++ "─") ("│ " ++ (show x ++ " " *> " ")) (draw m) ++ (firstdraw'' xs)
     draw (Leaf a) = concat ["──{", show a, "}"] :[]
@@ -43,14 +47,19 @@ drawNMap mt = unlines $ firstdraw mt where
     draw' [] = "()":[]
     draw' [(x,m)] = shift ("──" ++ show x ++ "─") ("--" ++ show x ++ "-" *> " ") (draw m)
     draw' ((x,m):xs) = shift ("┬─" ++ show x ++ "─") ("│ " ++ (show x ++ " " *> " ")) (draw m) ++ (draw'' xs)
+    draw'' [] = undefined
     draw'' [(x,m)] = shift ("└─" ++ show x ++ "─") ("  " ++ show x ++ " " *> " ") (draw m) 
     draw'' ((x,m):xs) = shift ("├─" ++ show x ++ "─") ("│ " ++ (show x ++ " " *> " ")) (draw m) ++ (draw'' xs)
-    shift first other = zipWith (++) (first : repeat other)
+    shift lhs other = zipWith (++) (lhs : repeat other)
+
+instance Ord k => Semigroup (NMap k b) where
+    (<>) = mappend
+    stimes = stimesIdempotentMonoid
 
 instance Ord k => Monoid (NMap k b) where
     mempty = Branch M.empty
     (Branch m1) `mappend` (Branch m2) = Branch $ M.unionWith mappend m1 m2
-    fst `mappend` _ = fst
+    lleaf `mappend` _ = lleaf
 
 instance Functor (NMap k) where
     fmap f (Leaf a) = Leaf (f a)
@@ -69,7 +78,7 @@ instance Monad (NMap k) where
     
     
 mapKeys :: Ord k2 => (k1 -> k2) -> NMap k1 a -> NMap k2 a
-mapKeys f (Leaf a) = Leaf a
+mapKeys _ (Leaf a) = Leaf a
 mapKeys f (Branch m) = Branch $ (mapKeys f) <$> (M.mapKeys f m)
 
 mapWithKey :: (k -> a -> b) -> NMap k a -> NMap k b
@@ -78,13 +87,13 @@ mapWithKey f (Branch m) = Branch $ M.mapWithKey (\k mt -> mapWithKey0 f k mt) m
 
 mapWithKey0 :: (k -> a -> b) -> k -> NMap k a -> NMap k b
 mapWithKey0 f k (Leaf a) = Leaf (f k a)
-mapWithKey0 f k (Branch m) = Branch $ M.mapWithKey (\k' mt -> mapWithKey0 f k' mt) m
+mapWithKey0 f _ (Branch m) = Branch $ M.mapWithKey (\k' mt -> mapWithKey0 f k' mt) m
 
 mapWithKeys :: ([k] -> a -> b) -> NMap k a -> NMap k b
 mapWithKeys f m = mapWithKeys0 f [] m
     where
-        mapWithKeys0 f ks (Leaf a) = Leaf $ f ks a
-        mapWithKeys0 f ks (Branch m) = Branch $ M.mapWithKey (\k mt -> mapWithKeys0 f (ks ++ [k]) mt) m
+        mapWithKeys0 f' ks (Leaf a) = Leaf $ f' ks a
+        mapWithKeys0 f' ks (Branch m') = Branch $ M.mapWithKey (\k mt -> mapWithKeys0 f' (ks ++ [k]) mt) m'
 
 instance Foldable (NMap k) where
     foldr = fold
@@ -146,7 +155,7 @@ rootKeys (Leaf _) = error "0-depth trees don't have keys"
 rootKeys (Branch m) = M.keys m
 
 lookup :: Ord k => k -> NMap k a -> Maybe (Either (NMap k a) a)
-lookup k (Leaf _) = Nothing
+lookup _ (Leaf _) = Nothing
 lookup k (Branch m) = case M.lookup k m of
     Just (Branch m') -> Just (Left $ Branch m')
     Just (Leaf a) -> Just (Right a)
@@ -154,11 +163,11 @@ lookup k (Branch m) = case M.lookup k m of
 
 (!) :: Ord k => NMap k a -> [k] -> a
 (Leaf a)![] = a
-(Leaf a)!_ = error "too many keys provided"
+(Leaf _)!_ = error "too many keys provided"
 (Branch m)!(k:ks) = case m M.! k of
     (Leaf a') -> a'
     b -> b!ks
-(Branch m)![] = error "not enough keys"
+(Branch _)![] = error "not enough keys"
     
 
 member :: Ord k => k -> NMap k a -> Bool
@@ -166,42 +175,39 @@ member k (Branch m) = M.member k m
 member _ _ = False
 
 branch :: Ord k => [k] -> a -> NMap k a
-branch ks a = foldr (\a b -> fromList [(a,b)]) (Leaf a) ks
+branch ks e = foldr (\a b -> fromList [(a,b)]) (Leaf e) ks
 
 branch0 :: Ord k => k -> a -> NMap k a
-branch0 k a = fromList [k .> a]
+branch0 k e = fromList [k .> e]
 
 insert :: Ord k => [k] -> a -> NMap k a -> NMap k a
-insert ks a m = (branch ks a) `mappend` m
+insert ks e m = (branch ks e) `mappend` m
 
 insert0 :: Ord k => k -> a -> NMap k a -> NMap k a 
-insert0 k a m = insert [k] a m
+insert0 k e m = insert [k] e m
 
-pt :: (Show k, Show a) => NMap k a -> IO ()
-pt = putStr . drawNMap
-
-test1 = fromList
-    [ 1 .<
-        [ 1 .> 'a'
-        , 2 .< 
-            [ 1 .> 'b'
-            , 2 .> 'c']
-        , 3 .< 
-            [ 4 .> 'd' ] ]
-    , 2 .> 'e' ]
-        
-test2 = fromList
-    [ 1.< [ 2 .> 'a' ]]
-
-test3 = fromList
-    [ 1.< 
-        [ -2 .> 'a' ]
-    , 3 .> 'b'
-    , 4 .< [] ] 
-
-test4 = fromList
-    [ 1 .> (:[]) ]
-
-test5 = fromList
-    [ -1 .> (:[])
-    , -2 .> (:"-d")]
+-- test1 = fromList
+--     [ 1 .<
+--         [ 1 .> 'a'
+--         , 2 .< 
+--             [ 1 .> 'b'
+--             , 2 .> 'c']
+--         , 3 .< 
+--             [ 4 .> 'd' ] ]
+--     , 2 .> 'e' ]
+--         
+-- test2 = fromList
+--     [ 1.< [ 2 .> 'a' ]]
+-- 
+-- test3 = fromList
+--     [ 1.< 
+--         [ -2 .> 'a' ]
+--     , 3 .> 'b'
+--     , 4 .< [] ] 
+-- 
+-- test4 = fromList
+--     [ 1 .> (:[]) ]
+-- 
+-- test5 = fromList
+--     [ -1 .> (:[])
+--     , -2 .> (:"-d")]
